@@ -106,3 +106,7 @@ Dates use calendar days without timezone conversion. The API stores `startDate` 
 ### Continuous task bars
 
 Calendar ranges render as one continuous bar per week, spanning all included dates. A range crossing a week boundary continues in the next row with the same color and continuation markers. Overlapping ranges occupy separate lanes. Each task has its own color, shared by its calendar bar, Board card accent, and Unscheduled entry. Colors are derived from the complete board task list so searches, date filters, status changes and reloads preserve the assignment for that task list.
+
+## Free cloud review deployment
+
+The repository-root `Dockerfile` packages React and Go together, and `render.yaml` configures a Render Free web service with a separate Neon PostgreSQL database. Follow [the Render + Neon guide](docs/DEPLOY_RENDER_NEON.md). The service uses one HTTPS origin for frontend and API. Automatic deploys are disabled, and the database connection string is supplied only through Render secrets.

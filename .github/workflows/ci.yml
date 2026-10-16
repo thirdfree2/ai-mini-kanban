@@ -36,6 +36,25 @@ jobs:
       - name: Backend database integration tests
         run: docker run --rm --network mini-kanban_default -v "$PWD/backend:/app" -w /app -e TEST_DATABASE_URL=postgres://kanban:kanban_local_dev@db:5432/kanban?sslmode=disable golang:1.23-alpine go test -v ./...
       - run: npm run test:e2e
+      - name: Build combined deployment image
+        run: docker build -t mini-kanban-render-preview:local .
+      - name: Start combined deployment image
+        run: docker run -d --name mini-kanban-render-preview --network mini-kanban_default -p 127.0.0.1:3001:8080 -e 'DATABASE_URL=postgres://kanban:kanban_local_dev@db:5432/kanban?sslmode=disable' -e COOKIE_SECURE=false mini-kanban-render-preview:local
+      - name: Verify combined service readiness and static routing
+        run: |
+          for attempt in $(seq 1 40); do
+            if curl --silent --fail http://localhost:3001/api/health; then break; fi
+            sleep 3
+          done
+          curl --fail http://localhost:3001/api/health
+          curl --fail http://localhost:3001/boards/example | grep -qi '<!doctype html>'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:3001/api/does-not-exist)" = 404
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:3001/assets/missing.js)" = 404
+      - name: Combined deployment image end-to-end tests
+        run: npm run test:e2e
+        env:
+          API_BASE_URL: http://localhost:3001/api
+          PLAYWRIGHT_BASE_URL: http://localhost:3001
       - name: Application logs
         if: failure()
         run: docker compose -f deploy/docker-compose.yml logs
@@ -46,4 +65,6 @@ jobs:
           path: playwright-report/
       - name: Stop application
         if: always()
-        run: docker compose -f deploy/docker-compose.yml down
+        run: |
+          docker rm -f mini-kanban-render-preview || true
+          docker compose -f deploy/docker-compose.yml down

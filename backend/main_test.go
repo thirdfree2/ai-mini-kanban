@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -188,5 +190,49 @@ func TestDateRangeValidation(t *testing.T) {
 		if validDateRange(v.start, v.end) != v.valid {
 			t.Errorf("range %q/%q", v.start, v.end)
 		}
+	}
+}
+
+func TestStaticFrontend(t *testing.T) {
+	directory := t.TempDir()
+	if e := os.Mkdir(filepath.Join(directory, "assets"), 0755); e != nil {
+		t.Fatal(e)
+	}
+	for path, body := range map[string]string{"index.html": "<html>Kanban application</html>", "assets/app.js": "console.log('kanban')", ".private": "secret"} {
+		if e := os.WriteFile(filepath.Join(directory, path), []byte(body), 0644); e != nil {
+			t.Fatal(e)
+		}
+	}
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if e := os.WriteFile(outside, []byte("outside secret"), 0644); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Symlink(outside, filepath.Join(directory, "outside.txt")); e != nil {
+		t.Fatal(e)
+	}
+	t.Setenv("STATIC_DIR", directory)
+	r := (&App{}).router()
+	for _, test := range []struct {
+		method, path string
+		status       int
+		body         string
+	}{{"GET", "/", 200, "Kanban application"}, {"GET", "/boards/abc", 200, "Kanban application"}, {"GET", "/assets/app.js", 200, "console.log"}, {"GET", "/assets/missing.js", 404, "not found"}, {"GET", "/assets/missing", 404, "not found"}, {"GET", "/missing.ico", 404, "not found"}, {"GET", "/api/missing", 404, "API route not found"}, {"GET", "/api", 404, "API route not found"}, {"POST", "/boards/abc", 404, "not found"}, {"GET", "/../outside.txt", 404, "not found"}, {"GET", "/%2e%2e/outside.txt", 404, "not found"}, {"GET", "/.private", 404, "not found"}, {"GET", "/outside.txt", 404, "not found"}} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(test.method, test.path, nil))
+		if w.Code != test.status || !strings.Contains(w.Body.String(), test.body) {
+			t.Errorf("%s %s got %d %q", test.method, test.path, w.Code, w.Body.String())
+		}
+		if strings.Contains(w.Body.String(), "outside secret") {
+			t.Fatal("outside file disclosed")
+		}
+	}
+}
+func TestDefaultAPIOnly(t *testing.T) {
+	t.Setenv("STATIC_DIR", "")
+	r := (&App{}).router()
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != 404 {
+		t.Fatal(w.Code)
 	}
 }

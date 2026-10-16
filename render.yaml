@@ -1,0 +1,21 @@
+# Render Blueprint reference: https://render.com/docs/blueprint-spec
+# Supply a Neon PostgreSQL URL with sslmode=require when creating the service.
+services:
+  - type: web
+    name: mini-kanban
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: 'off'
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: GIN_MODE
+        value: release
+      - key: STATIC_DIR
+        value: /app/public

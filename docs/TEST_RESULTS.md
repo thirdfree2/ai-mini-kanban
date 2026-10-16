@@ -34,3 +34,13 @@ Screenshots: [desktop](screenshots/board-desktop.png), [mobile](screenshots/boar
 Frontend production build and Docker Compose rebuild/startup passed; all three services healthy. Full Playwright suite: **8/8 passed in 3.4 seconds**, without retries.
 
 Added verification for one three-day bar spanning three columns; ranges split only at week boundaries with consistent color; overlapping tasks in separate lanes with nonoverlapping rendered boxes; distinct task colors; color persistence across reload and filters; and inclusive clipping of bars to the selected filter range. Existing Calendar, date API, Kanban and mobile checks remain passing. Desktop/mobile screenshots were refreshed and visually inspected.
+
+## Render + Neon deployment preparation — 16 October 2026
+
+- Root combined Docker image built successfully; runtime is nonroot UID 10001 with CA certificates.
+- All eight Playwright checks passed against the combined same-origin service at localhost:3001 (3.6 seconds).
+- Static smoke checks passed: root/deep SPA routes200 HTML; API health200 JSON; unknown API, missing assets and hidden files404.
+- Go race tests/build passed with static routing and traversal protection tests.
+- Render Blueprint and CI YAML parsed locally; Blueprint uses Free, Singapore, explicit secret input, HTTPS cookies and manual deployment settings. Hosted Render validation/deployment has not been executed.
+- A health probe initially returned503 because the local database container had stopped; after restart, health returned200.
+- No public cloud environment was deployed. Neon credentials must be entered in Render's secret settings.

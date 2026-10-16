@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -107,6 +108,7 @@ func (a *App) router() *gin.Engine {
 	p.POST("/boards/:id/tasks", a.createTask)
 	p.PATCH("/tasks/:id", a.updateTask)
 	p.DELETE("/tasks/:id", a.deleteTask)
+	r.NoRoute(staticHandler(os.Getenv("STATIC_DIR")))
 	return r
 }
 func fail(c *gin.Context, status int, msg string) { c.AbortWithStatusJSON(status, gin.H{"error": msg}) }
@@ -400,4 +402,66 @@ func (a *App) deleteTask(c *gin.Context) {
 		return
 	}
 	c.Status(204)
+}
+
+// staticHandler serves a compiled frontend while preserving the API namespace.
+func staticHandler(directory string) gin.HandlerFunc {
+	root, rootErr := filepath.Abs(directory)
+	if directory != "" && rootErr == nil {
+		root, rootErr = filepath.EvalSymlinks(root)
+	}
+	return func(c *gin.Context) {
+		requestPath := c.Request.URL.Path
+		if requestPath == "/api" || strings.HasPrefix(requestPath, "/api/") {
+			fail(c, 404, "API route not found")
+			return
+		}
+		if directory == "" || rootErr != nil || c.Request.Method != http.MethodGet {
+			fail(c, 404, "not found")
+			return
+		}
+		if strings.Contains(requestPath, "\\") {
+			fail(c, 404, "not found")
+			return
+		}
+		for _, segment := range strings.Split(requestPath, "/") {
+			if segment == ".." || strings.HasPrefix(segment, ".") {
+				fail(c, 404, "not found")
+				return
+			}
+		}
+		serve := func(relative string) bool {
+			resolved, e := filepath.EvalSymlinks(filepath.Join(root, relative))
+			if e != nil {
+				return false
+			}
+			rel, e := filepath.Rel(root, resolved)
+			if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return false
+			}
+			file, e := os.Open(resolved)
+			if e != nil {
+				return false
+			}
+			defer file.Close()
+			info, e := file.Stat()
+			if e != nil || !info.Mode().IsRegular() {
+				return false
+			}
+			http.ServeContent(c.Writer, c.Request, info.Name(), info.ModTime(), file)
+			return true
+		}
+		relative := strings.TrimPrefix(requestPath, "/")
+		if relative != "" && serve(relative) {
+			return
+		}
+		if requestPath == "/assets" || strings.HasPrefix(requestPath, "/assets/") || filepath.Ext(requestPath) != "" {
+			fail(c, 404, "not found")
+			return
+		}
+		if serve("index.html") {
+			return
+		}
+		fail(c, 404, "not found")
+	}
 }
