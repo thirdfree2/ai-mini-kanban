@@ -1,0 +1,49 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Backend unit tests
+        working-directory: backend
+        run: go test -race ./...
+      - name: Frontend build
+        working-directory: frontend
+        run: npm ci && npm run build
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start application
+        run: docker compose -f deploy/docker-compose.yml up --build -d --wait
+      - name: Wait for application
+        run: |
+          for attempt in $(seq 1 40); do
+            if curl --fail http://localhost:3000/ && curl --fail http://localhost:8080/api/health; then exit 0; fi
+            sleep 3
+          done
+          docker compose -f deploy/docker-compose.yml logs
+          exit 1
+      - name: Backend database integration tests
+        run: docker run --rm --network mini-kanban_default -v "$PWD/backend:/app" -w /app -e TEST_DATABASE_URL=postgres://kanban:kanban_local_dev@db:5432/kanban?sslmode=disable golang:1.23-alpine go test -v ./...
+      - run: npm run test:e2e
+      - name: Application logs
+        if: failure()
+        run: docker compose -f deploy/docker-compose.yml logs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+      - name: Stop application
+        if: always()
+        run: docker compose -f deploy/docker-compose.yml down

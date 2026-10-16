@@ -1,0 +1,48 @@
+name: mini-kanban
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: kanban
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kanban_local_dev}
+      POSTGRES_DB: kanban
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U kanban -d kanban]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  backend:
+    build: ../backend
+    environment:
+      DATABASE_URL: postgres://kanban:${POSTGRES_PASSWORD:-kanban_local_dev}@db:5432/kanban?sslmode=disable
+      PORT: '8080'
+      GIN_MODE: release
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${API_PORT:-8080}:8080'
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1:8080/api/health']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+  frontend:
+    build: ../frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:80'
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+volumes:
+  postgres_data:

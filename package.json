@@ -1,0 +1,13 @@
+{
+  "name": "mini-kanban-quality",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report",
+    "start": "docker compose -f deploy/docker-compose.yml up --build -d",
+    "stop": "docker compose -f deploy/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
