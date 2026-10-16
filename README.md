@@ -1,5 +1,7 @@
 # Mini Kanban Board
 
+Live review app: [mini-kanban-8mys.onrender.com](https://mini-kanban-8mys.onrender.com). Runs on Render Free with Neon PostgreSQL. See [deployment verification](docs/RENDER_DEPLOYMENT.md).
+
 A local development application built with React, TypeScript, Tailwind CSS, Go/Gin and PostgreSQL. Create an account, organize private boards, and manage tasks across To do, In progress and Done.
 
 ## Start with Docker

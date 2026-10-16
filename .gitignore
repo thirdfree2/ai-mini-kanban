@@ -10,3 +10,5 @@ backend/server
 !.env.example
 *.tsbuildinfo
 .neon
+public-test-results/
+public-playwright-report/
