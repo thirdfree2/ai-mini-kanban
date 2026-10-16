@@ -110,3 +110,20 @@ Calendar ranges render as one continuous bar per week, spanning all included dat
 ## Free cloud review deployment
 
 The repository-root `Dockerfile` packages React and Go together, and `render.yaml` configures a Render Free web service with a separate Neon PostgreSQL database. Follow [the Render + Neon guide](docs/DEPLOY_RENDER_NEON.md). The service uses one HTTPS origin for frontend and API. Automatic deploys are disabled, and the database connection string is supplied only through Render secrets.
+
+## Run this app with the linked Neon database
+
+Neon configuration is declared in `neon.ts` (PostgreSQL only; existing application authentication stays in Go). Local project/branch selection is in gitignored `.neon`. `neon deploy` pulls `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, and `NEON_BRANCH` into `.env.local` (or an existing `.env`). These files contain secrets and must not be committed.
+
+The Neon CLI skills require Node.js 22.20+; use a compatible installed Node version when running `neon init` or `neon deploy`. The application startup helper requires Node.js 20.12+ and Go 1.23+ for native builds.
+
+```sh
+npm ci
+npm --prefix frontend ci
+npm run build
+npm run start:neon
+```
+
+Open http://localhost:3002. Set `PORT` to override this port. The startup helper loads `.env` if present, otherwise `.env.local`, preserves variables already set by the shell, and starts the compiled Go server with the built frontend. It does not start the local Compose database. `npm start` continues to run the original Docker Compose environment at port3000.
+
+The Go API keeps its existing `pgx` driver, a maximum of five runtime pool connections, and TLS settings from Neon connection strings. Application queries use `DATABASE_URL`; schema initialization uses a separate `DATABASE_URL_UNPOOLED` connection when supplied. `NEON_BRANCH` is CLI metadata and is not a database credential. No Neon Auth, Functions, or other unrequested services are enabled.

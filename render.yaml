@@ -13,6 +13,8 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
       - key: COOKIE_SECURE
         value: 'true'
       - key: GIN_MODE

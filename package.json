@@ -5,9 +5,15 @@
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report",
     "start": "docker compose -f deploy/docker-compose.yml up --build -d",
-    "stop": "docker compose -f deploy/docker-compose.yml down"
+    "stop": "docker compose -f deploy/docker-compose.yml down",
+    "build": "npm --prefix frontend run build && cd backend && go build -o ../dist/server .",
+    "start:neon": "node scripts/start-neon.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.2",
+    "@neon/env": "^1.6.3"
   }
 }

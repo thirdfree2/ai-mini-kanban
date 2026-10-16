@@ -56,24 +56,70 @@ CREATE INDEX IF NOT EXISTS boards_user_idx ON boards(user_id);
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);`
 
+// databaseConfig keeps the runtime pool small and allows migrations to bypass PgBouncer.
+func databaseConfig(runtimeURL, migrationURL string) (*pgxpool.Config, string, error) {
+	if strings.TrimSpace(runtimeURL) == "" {
+		return nil, "", errors.New("DATABASE_URL is required")
+	}
+	config, err := pgxpool.ParseConfig(runtimeURL)
+	if err != nil {
+		return nil, "", errors.New("DATABASE_URL is invalid")
+	}
+	config.MaxConns = 5
+	config.MinConns = 0
+	config.MaxConnIdleTime = 5 * time.Minute
+	config.MaxConnLifetime = 30 * time.Minute
+	config.ConnConfig.ConnectTimeout = 10 * time.Second
+	if strings.TrimSpace(migrationURL) == "" {
+		migrationURL = runtimeURL
+	}
+	if _, err = pgx.ParseConfig(migrationURL); err != nil {
+		return nil, "", errors.New("DATABASE_URL_UNPOOLED is invalid")
+	}
+	return config, migrationURL, nil
+}
+func migrateSchema(ctx context.Context, databaseURL string) error {
+	config, err := pgx.ParseConfig(databaseURL)
+	if err != nil {
+		return errors.New("invalid schema connection configuration")
+	}
+	config.ConnectTimeout = 10 * time.Second
+	migrationContext, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	connection, err := pgx.ConnectConfig(migrationContext, config)
+	if err != nil {
+		return errors.New("schema database connection failed")
+	}
+	defer connection.Close(context.Background())
+	if _, err = connection.Exec(migrationContext, schema); err != nil {
+		return errors.New("database schema initialization failed")
+	}
+	return nil
+}
 func main() {
 	ctx := context.Background()
-	db, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	config, migrationURL, err := databaseConfig(os.Getenv("DATABASE_URL"), os.Getenv("DATABASE_URL_UNPOOLED"))
 	if err != nil {
 		log.Fatal(err)
 	}
+	db, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		log.Fatal("database pool initialization failed")
+	}
 	defer db.Close()
 	for i := 0; i < 30; i++ {
-		err = db.Ping(ctx)
+		attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err = db.Ping(attempt)
+		cancel()
 		if err == nil {
 			break
 		}
 		time.Sleep(time.Second)
 	}
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("database unavailable after startup retries")
 	}
-	if _, err = db.Exec(ctx, schema); err != nil {
+	if err = migrateSchema(ctx, migrationURL); err != nil {
 		log.Fatal(err)
 	}
 	port := os.Getenv("PORT")
@@ -83,6 +129,7 @@ func main() {
 	server := &http.Server{Addr: ":" + port, Handler: (&App{db}).router(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	log.Fatal(server.ListenAndServe())
 }
+
 func (a *App) router() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())

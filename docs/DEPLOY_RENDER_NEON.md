@@ -16,12 +16,12 @@ The new database starts empty. Local accounts and boards are not automatically t
 1. Sign in at https://dashboard.render.com and connect the GitHub account that can access `thirdfree2/ai-mini-kanban`.
 2. Choose New → Blueprint and select this repository and the branch containing `render.yaml`.
 3. Review the proposed single Web Service. Ensure its plan is **Free**.
-4. Set `DATABASE_URL` to the Neon connection string in the secret field.
+4. Set `DATABASE_URL` to the pooled Neon connection string and `DATABASE_URL_UNPOOLED` to the direct connection string in the secret fields.
 5. Apply the Blueprint when you are ready to publish the review environment.
 
 The Blueprint enables secure cookies, release mode, and `/api/health` readiness checks. Automatic deployment is disabled; select Manual Deploy for subsequent releases. Render supplies the listening port and HTTPS URL. Initial Blueprint creation deploys immediately; disabling automatic deployments does not prevent that first deployment.
 
-Alternatively create a Docker Web Service manually with repository-root build context and `./Dockerfile`. Set `STATIC_DIR=/app/public`, `DATABASE_URL`, `COOKIE_SECURE=true`, and `GIN_MODE=release`; choose Free and health check `/api/health`.
+Alternatively create a Docker Web Service manually with repository-root build context and `./Dockerfile`. Set `STATIC_DIR=/app/public`, `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `COOKIE_SECURE=true`, and `GIN_MODE=release`; choose Free and health check `/api/health`.
 
 ## 3. Verify
 

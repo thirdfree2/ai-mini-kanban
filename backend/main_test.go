@@ -236,3 +236,27 @@ func TestDefaultAPIOnly(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 }
+
+func TestDatabaseConfiguration(t *testing.T) {
+	runtimeURL := "postgres://app:password@pooler.example.test/app?sslmode=require"
+	directURL := "postgres://app:password@direct.example.test/app?sslmode=require"
+	config, migrationURL, err := databaseConfig(runtimeURL, directURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.ConnConfig.Host != "pooler.example.test" || migrationURL != directURL {
+		t.Fatal("pooled runtime and direct migration URLs not preserved")
+	}
+	if config.MaxConns != 5 || config.MinConns != 0 || config.ConnConfig.ConnectTimeout != 10*time.Second || config.MaxConnIdleTime != 5*time.Minute {
+		t.Fatal("unexpected pool limits")
+	}
+	_, fallback, err := databaseConfig(runtimeURL, "")
+	if err != nil || fallback != runtimeURL {
+		t.Fatal("local migration fallback failed")
+	}
+	for _, test := range []struct{ runtime, migration string }{{"", ""}, {"   ", ""}, {"postgres://%invalid", ""}, {runtimeURL, "postgres://%invalid"}} {
+		if _, _, err := databaseConfig(test.runtime, test.migration); err == nil {
+			t.Fatal("invalid configuration accepted")
+		}
+	}
+}

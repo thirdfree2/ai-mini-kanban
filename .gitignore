@@ -9,3 +9,4 @@ backend/server
 .env.*
 !.env.example
 *.tsbuildinfo
+.neon
